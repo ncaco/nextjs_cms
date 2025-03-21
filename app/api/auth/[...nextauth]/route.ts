@@ -1,11 +1,10 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { PrismaClient } from '@prisma/client';
+import { Role } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { prisma } from '../../../../prisma/client';
 
-const prisma = new PrismaClient();
-
-const handler = NextAuth({
+export const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -14,30 +13,41 @@ const handler = NextAuth({
         password: { label: '비밀번호', type: 'password' }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            console.log('로그인 실패: 자격 증명 누락');
+            return null;
+          }
+
+          console.log('사용자 조회 중:', credentials.email);
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          });
+
+          if (!user) {
+            console.log('로그인 실패: 사용자 없음');
+            return null;
+          }
+
+          console.log('비밀번호 검증 중...');
+          const passwordMatch = await bcrypt.compare(credentials.password, user.password);
+
+          if (!passwordMatch) {
+            console.log('로그인 실패: 비밀번호 불일치');
+            return null;
+          }
+
+          console.log('로그인 성공:', user.email);
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error('로그인 과정에서 오류 발생:', error);
           return null;
         }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        });
-
-        if (!user) {
-          return null;
-        }
-
-        const passwordMatch = await bcrypt.compare(credentials.password, user.password);
-
-        if (!passwordMatch) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
       }
     })
   ],
@@ -55,7 +65,7 @@ const handler = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
+        session.user.role = token.role as Role;
       }
       return session;
     },
@@ -65,6 +75,7 @@ const handler = NextAuth({
     signOut: '/auth/logout',
     error: '/auth/error',
   },
+  debug: process.env.NODE_ENV === 'development',
   secret: process.env.NEXTAUTH_SECRET,
 });
 

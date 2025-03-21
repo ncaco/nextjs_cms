@@ -1,20 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
 export default function Login() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // URL에서 registered 파라미터 확인
+    const registered = searchParams?.get('registered');
+    if (registered === 'success') {
+      setSuccess('회원가입이 완료되었습니다. 이제 로그인할 수 있습니다.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('로그인 폼 제출됨:', { email });
     
     if (!email || !password) {
       setError('이메일과 비밀번호를 모두 입력해주세요.');
@@ -24,23 +35,40 @@ export default function Login() {
     try {
       setLoading(true);
       setError('');
+      setSuccess('');
       
+      console.log('로그인 시도 중...');
       const result = await signIn('credentials', {
         redirect: false,
         email,
         password,
       });
       
+      console.log('로그인 응답:', result);
+      
       if (result?.error) {
         setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+        console.error('로그인 실패:', result.error);
         return;
       }
       
-      // 로그인 성공 후 대시보드로 이동
-      router.push('/dashboard');
+      if (!result?.ok) {
+        setError('로그인 처리 중 문제가 발생했습니다.');
+        console.error('로그인 실패: 서버 응답이 ok가 아님');
+        return;
+      }
+      
+      // 로그인 성공 메시지 표시
+      console.log('로그인 성공!');
+      setSuccess('로그인 성공! 대시보드로 이동합니다...');
+      
+      // 잠시 후 대시보드로 이동
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 1500);
     } catch (error) {
+      console.error('로그인 예외 발생:', error);
       setError('로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
-      console.error('Login error:', error);
     } finally {
       setLoading(false);
     }
@@ -78,7 +106,24 @@ export default function Login() {
           </div>
         )}
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        {success && (
+          <div className="bg-green-50 border-l-4 border-green-500 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-700">
+                  {success}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <form className="mt-8 space-y-6" onSubmit={(e) => e.preventDefault()}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email-address" className="sr-only">이메일 주소</label>
@@ -132,8 +177,12 @@ export default function Login() {
 
           <div>
             <button
-              type="submit"
+              type="button"
               disabled={loading}
+              onClick={(e) => {
+                console.log('로그인 버튼 클릭됨');
+                handleSubmit(e);
+              }}
               className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
                 loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'
               } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}

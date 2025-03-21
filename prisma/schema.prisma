@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 사용자 모델
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  name            String
+  role            Role      @default(USER)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  contents        Content[]
+  comments        Comment[]
+  uploadedFiles   File[]
+}
+
+// 사용자 역할 열거형
+enum Role {
+  ADMIN
+  EDITOR
+  USER
+}
+
+// 콘텐츠 모델
+model Content {
+  id              String    @id @default(uuid())
+  title           String
+  description     String?
+  content         String
+  published       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  author          User      @relation(fields: [authorId], references: [id])
+  authorId        String
+  categories      Category[]
+  tags            Tag[]
+  comments        Comment[]
+  files           File[]    @relation("ContentFiles")
+  versions        ContentVersion[]
+}
+
+// 콘텐츠 버전 관리 모델
+model ContentVersion {
+  id              String    @id @default(uuid())
+  content         Content   @relation(fields: [contentId], references: [id])
+  contentId       String
+  versionNumber   Int
+  versionData     String
+  createdAt       DateTime  @default(now())
+}
+
+// 카테고리 모델
+model Category {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  description     String?
+  parentId        String?
+  parent          Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children        Category[] @relation("CategoryHierarchy")
+  contents        Content[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// 태그 모델
+model Tag {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  contents        Content[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// 댓글 모델
+model Comment {
+  id              String    @id @default(uuid())
+  text            String
+  content         Content   @relation(fields: [contentId], references: [id])
+  contentId       String
+  author          User      @relation(fields: [authorId], references: [id])
+  authorId        String
+  parentId        String?
+  parent          Comment?  @relation("CommentHierarchy", fields: [parentId], references: [id])
+  children        Comment[] @relation("CommentHierarchy")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// 파일 모델
+model File {
+  id              String    @id @default(uuid())
+  name            String
+  path            String
+  size            Int
+  type            String
+  uploader        User      @relation(fields: [uploaderId], references: [id])
+  uploaderId      String
+  contents        Content[] @relation("ContentFiles")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// 메뉴 모델
+model Menu {
+  id              String    @id @default(uuid())
+  name            String
+  path            String
+  order           Int
+  parentId        String?
+  parent          Menu?     @relation("MenuHierarchy", fields: [parentId], references: [id])
+  children        Menu[]    @relation("MenuHierarchy")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
